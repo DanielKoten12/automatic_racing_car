@@ -7,8 +7,9 @@ from utils import clamp
 class RuleController:
     """Controller berbasis aturan sederhana untuk mobil balap"""
     
-    def __init__(self):
+    def __init__(self, max_speed=900):
         """Inisialisasi parameter controller"""
+        self.max_speed = max_speed
         self.k_steer = 0.006  # konstanta steering proporsional
     
     def act(self, s):

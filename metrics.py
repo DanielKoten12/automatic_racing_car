@@ -50,14 +50,15 @@ class Metrics:
         img = self.font.render(txt, True, (255, 255, 255))
         screen.blit(img, pos)
 
-    def save_csv(self, path):
+    def save_csv(self, path, laps=0):
         """
         Simpan metrics ke file CSV
         
         Args:
             path (str): path file output CSV
+            laps (int): jumlah lap yang diselesaikan
         """
         with open(path, "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["time_s", "collisions", "corrections", "label"])
-            w.writerow([round(self.t, 2), self.coll, self.corr, self.label])
+            w.writerow(["time_s", "collisions", "corrections", "laps", "label"])
+            w.writerow([round(self.t, 2), self.coll, self.corr, laps, self.label])

@@ -25,6 +25,10 @@ class Track:
     def _is_road_pixel(self, x, y):
         """Cek apakah pixel (x,y) adalah jalan"""
         r, g, b = self.surface.get_at((x, y))[:3]
+        # Garis putih (start line) juga dianggap sebagai jalan
+        white_like = (r == 255 and g == 255 and b == 255)
+        if white_like:
+            return True
         mean = (r + g + b) / 3
         gray_like = (
             abs(r - g) <= self.gray_tol

@@ -26,6 +26,9 @@ class Car:
         self.sensor_color = sensor_color
         # sprite
         self.image = self._make_sprite(color)
+        # lap counter
+        self.lap_count = 0
+        self.last_x = pos[0]  # untuk deteksi melewati garis start
 
     def _make_sprite(self, color):
         """Membuat sprite mobil dengan warna tertentu"""

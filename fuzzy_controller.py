@@ -33,8 +33,8 @@ class FuzzyController:
         """
         self.sensor_len = sensor_len
         self.max_speed = max_speed
-        self.k_center = 0.3  # konstanta koreksi ke tengah (dikurangi untuk lebih smooth)
-        self.k_wall_avoid = 0.5  # konstanta untuk menghindari dinding samping
+        self.k_center = 0.28  # konstanta koreksi ke tengah (lebih responsif)
+        self.k_wall_avoid = 0.85  # konstanta untuk menghindari dinding samping (sangat sensitif)
     
     def act(self, s):
         """
@@ -63,10 +63,10 @@ class FuzzyController:
         # Deteksi minimum clearance samping
         min_side = min(L, R, LM, RM)
 
-        # membership jarak depan (lebih sensitif)
-        very_near = tri(F, 0.0, 0.0, 0.25)
-        near = tri(F, 0.15, 0.30, 0.45)
-        mid = tri(F, 0.35, 0.55, 0.75)
+        # membership jarak depan (lebih sensitif dan konservatif)
+        very_near = tri(F, 0.0, 0.0, 0.30)
+        near = tri(F, 0.20, 0.35, 0.50)
+        mid = tri(F, 0.40, 0.60, 0.75)
         far = tri(F, 0.65, 1.0, 1.0)
 
         # membership posisi kiri/kanan (center lebih sempit untuk kontrol lebih baik)
@@ -82,10 +82,10 @@ class FuzzyController:
         med = tri(V, 0.45, 0.65, 0.80)
         fast = tri(V, 0.70, 0.90, 1.0)
         
-        # membership jarak samping (untuk wall avoidance)
-        side_critical = tri(min_side, 0.0, 0.0, 0.20)
-        side_close = tri(min_side, 0.10, 0.25, 0.40)
-        side_safe = tri(min_side, 0.30, 1.0, 1.0)
+        # membership jarak samping (untuk wall avoidance - lebih sensitif)
+        side_critical = tri(min_side, 0.0, 0.0, 0.30)
+        side_close = tri(min_side, 0.20, 0.35, 0.50)
+        side_safe = tri(min_side, 0.40, 1.0, 1.0)
 
         rules = []
 
@@ -164,10 +164,10 @@ class FuzzyController:
         if w14 > 0:
             rules.append(("brakeM", "steerL", "gasL", w14 * 1.2))
 
-        # peta defuzz (dengan lebih banyak level)
-        steer_map = {"steerL": -0.75, "steerC": 0.0, "steerR": 0.75}
-        gas_map = {"gasL": 0.30, "gasM": 0.60, "gasH": 0.90}
-        brake_map = {"brake0": 0.0, "brakeL": 0.35, "brakeM": 0.65, "brakeH": 1.0}
+        # peta defuzz (dengan lebih banyak level - lebih smooth steering)
+        steer_map = {"steerL": -0.60, "steerC": 0.0, "steerR": 0.60}
+        gas_map = {"gasL": 0.40, "gasM": 0.68, "gasH": 0.92}
+        brake_map = {"brake0": 0.0, "brakeL": 0.40, "brakeM": 0.70, "brakeH": 1.0}
 
         num_s = den_s = 0.0
         num_t = den_t = 0.0
@@ -187,20 +187,22 @@ class FuzzyController:
         throttle = (num_t / den_t) if den_t > 0 else 0.5
 
         # koreksi halus ke tengah pakai bias B langsung
-        steer_center = clamp(self.k_center * B, -0.35, 0.35)
+        steer_center = clamp(self.k_center * B, -0.30, 0.30)
         
-        # wall avoidance correction berdasarkan sensor samping
+        # wall avoidance correction berdasarkan sensor samping (sangat agresif)
         wall_correction = 0.0
-        if L < 0.25:  # dinding kiri terlalu dekat
-            wall_correction += self.k_wall_avoid * (0.25 - L)
-        if R < 0.25:  # dinding kanan terlalu dekat
-            wall_correction -= self.k_wall_avoid * (0.25 - R)
+        if L < 0.40:  # dinding kiri terlalu dekat (threshold lebih tinggi)
+            wall_correction += self.k_wall_avoid * (0.40 - L)
+        if R < 0.40:  # dinding kanan terlalu dekat (threshold lebih tinggi)
+            wall_correction -= self.k_wall_avoid * (0.40 - R)
         
         # kombinasi steering dengan batas lebih ketat
-        steer = clamp(steer_fuzzy + steer_center + wall_correction, -0.85, 0.85)
+        steer = clamp(steer_fuzzy + steer_center + wall_correction, -0.75, 0.75)
         
-        # reduce throttle jika sedang steering tajam atau brake aktif
-        if abs(steer) > 0.5 or brake > 0.3:
+        # reduce throttle jika sedang steering tajam atau brake aktif (lebih agresif)
+        if abs(steer) > 0.45:
+            throttle *= 0.70
+        elif brake > 0.3:
             throttle *= 0.75
 
         return steer, throttle, clamp(brake, 0.0, 1.0)
