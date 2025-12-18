@@ -113,9 +113,6 @@ class RuleController:
         self._last_steer = final_steer
         final_steer = clamp(final_steer, -1.0, 1.0)
 
-        # ==========================================================
-        # 4. MOMENTUM-BASED SPEED LOGIC
-        # ==========================================================
         
         # A. Hitung kebutuhan pengereman
         current_braking_dist = speed * self.braking_factor

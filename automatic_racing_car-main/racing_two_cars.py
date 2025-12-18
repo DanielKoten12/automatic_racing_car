@@ -28,8 +28,8 @@ FINISH_LAPS = 5
 MAX_SPEED = 900
 
 CONE_COUNT = 10
-CONE_RADIUS = 10
-CONE_KEEPOUT = 60
+CONE_RADIUS = 8  # Diperkecil dari 10 agar tidak terlalu sering crash
+CONE_KEEPOUT = 40  # Diperkecil dari 60 agar deteksi tabrakan lebih akurat
 
 
 def main():
@@ -45,6 +45,10 @@ def main():
     font_ui = pygame.font.SysFont(None, 24)
     font_big = pygame.font.SysFont(None, 48)
     font_med = pygame.font.SysFont(None, 32)
+    
+    # ===== RACE HISTORY TRACKING =====
+    race_history = []  # List untuk menyimpan hasil setiap race
+    race_number = 0
 
     # ===== init cones sekali =====
     cones = ConeManager(
@@ -114,12 +118,42 @@ def main():
                     placing = False
 
                 elif e.key == pygame.K_r:
-                    # RULE UTAMA:
-                    # - kalau race sudah finish -> cones diacak ulang
-                    # - kalau belum finish -> cones tetap
+                    # Simpan hasil race saat ini jika race sudah selesai
                     if race_finished:
+                        race_number += 1
+                        race_history.append({
+                            "race": race_number,
+                            "red_time": met_rule.finish_time,
+                            "red_laps": car_rule.lap_count,
+                            "red_crashes": met_rule.coll,
+                            "blue_time": met_fuzzy.finish_time,
+                            "blue_laps": car_fuzzy.lap_count,
+                            "blue_crashes": met_fuzzy.coll
+                        })
+                        # Acak cone untuk race baru
                         cones.shuffle(cars=[car_rule, car_fuzzy])
 
+                    car_rule, car_fuzzy, ctrl_rule, ctrl_fuzzy, met_rule, met_fuzzy = build_cars_and_system()
+                    race_finished = False
+                    placing = False
+
+                elif e.key == pygame.K_t:
+                    # Tombol T: Restart dan SELALU mengacak cone (bahkan di tengah race)
+                    if race_finished:
+                        race_number += 1
+                        race_history.append({
+                            "race": race_number,
+                            "red_time": met_rule.finish_time,
+                            "red_laps": car_rule.lap_count,
+                            "red_crashes": met_rule.coll,
+                            "blue_time": met_fuzzy.finish_time,
+                            "blue_laps": car_fuzzy.lap_count,
+                            "blue_crashes": met_fuzzy.coll
+                        })
+                    
+                    # Selalu acak cone dengan tombol T
+                    cones.shuffle(cars=[car_rule, car_fuzzy])
+                    
                     car_rule, car_fuzzy, ctrl_rule, ctrl_fuzzy, met_rule, met_fuzzy = build_cars_and_system()
                     race_finished = False
                     placing = False
@@ -216,7 +250,7 @@ def main():
                 car_rule.vel *= 0.3
                 car_fuzzy.vel *= 0.3
 
-        # ================== RENDER ==================
+        # RENDER
         track.draw(screen)
         cones.draw(screen)
 
@@ -268,23 +302,88 @@ def main():
 
         pygame.display.flip()
 
-    # ================== SIMPAN METRICS ==================
+    #SIMPAN METRICS
     ts = int(time.time())
     met_rule.save_csv(f"run_rule_{ts}.csv", car_rule.lap_count)
     met_fuzzy.save_csv(f"run_fuzzy_{ts}.csv", car_fuzzy.lap_count)
 
-    print("\n" + "=" * 50)
-    print("RACE RESULTS")
-    print("=" * 50)
-    print("RED (Rule-Based):")
-    print(f"  - Laps: {car_rule.lap_count}")
-    print(f"  - Time: {met_rule.t:.2f}s")
-    print(f"  - Crashes: {met_rule.coll}")
-    print("\nBLUE (Fuzzy Logic):")
-    print(f"  - Laps: {car_fuzzy.lap_count}")
-    print(f"  - Time: {met_fuzzy.t:.2f}s")
-    print(f"  - Crashes: {met_fuzzy.coll}")
-    print("=" * 50)
+    # Simpan race terakhir jika belum disimpan
+    if race_finished and race_number == len(race_history):
+        race_number += 1
+        race_history.append({
+            "race": race_number,
+            "red_time": met_rule.finish_time,
+            "red_laps": car_rule.lap_count,
+            "red_crashes": met_rule.coll,
+            "blue_time": met_fuzzy.finish_time,
+            "blue_laps": car_fuzzy.lap_count,
+            "blue_crashes": met_fuzzy.coll
+        })
+
+    # TABEL EVALUASI
+    print("\n" + "=" * 120)
+    print(" " * 45 + "RACE EVALUATION RESULTS")
+    print("=" * 120)
+    
+    if race_history:
+        # Header tabel
+        header = "| Race | " + "RED Car (Rule-Based)" + " " * 10 + "| " + "BLUE Car (Fuzzy Logic)" + " " * 10 + "| Winner     |"
+        separator = "-" * 120
+        subheader = "|  No. | Time (s) | Laps | Crashes | Time (s) | Laps | Crashes | Winner     |"
+        
+        print(header)
+        print(separator)
+        print(subheader)
+        print(separator)
+        
+        # Data setiap race
+        for race in race_history:
+            # Tentukan pemenang
+            if race["red_laps"] > race["blue_laps"]:
+                winner = "RED"
+            elif race["blue_laps"] > race["red_laps"]:
+                winner = "BLUE"
+            elif race["red_laps"] == race["blue_laps"] and race["red_laps"] >= FINISH_LAPS:
+                # Keduanya finish, bandingkan waktu
+                if race["red_time"] < race["blue_time"]:
+                    winner = "RED"
+                elif race["blue_time"] < race["red_time"]:
+                    winner = "BLUE"
+                else:
+                    winner = "DRAW"
+            else:
+                winner = "NONE"
+            
+            row = f"|  {race['race']:2d}  | {race['red_time']:8.2f} | {race['red_laps']:4d} | {race['red_crashes']:7d} | {race['blue_time']:8.2f} | {race['blue_laps']:4d} | {race['blue_crashes']:7d} | {winner:10s} |"
+            print(row)
+        
+        print(separator)
+        
+        # Summary statistik
+        total_races = len(race_history)
+        red_wins = sum(1 for r in race_history if (
+            r["red_laps"] > r["blue_laps"] or 
+            (r["red_laps"] == r["blue_laps"] and r["red_laps"] >= FINISH_LAPS and r["red_time"] < r["blue_time"])
+        ))
+        blue_wins = sum(1 for r in race_history if (
+            r["blue_laps"] > r["red_laps"] or 
+            (r["blue_laps"] == r["red_laps"] and r["blue_laps"] >= FINISH_LAPS and r["blue_time"] < r["red_time"])
+        ))
+        
+        avg_red_time = sum(r["red_time"] for r in race_history) / total_races
+        avg_blue_time = sum(r["blue_time"] for r in race_history) / total_races
+        total_red_crashes = sum(r["red_crashes"] for r in race_history)
+        total_blue_crashes = sum(r["blue_crashes"] for r in race_history)
+        
+        print("\nSUMMARY:")
+        print(f"  Total Races: {total_races}")
+        print(f"  RED Wins: {red_wins} | BLUE Wins: {blue_wins}")
+        print(f"  RED Avg Time: {avg_red_time:.2f}s | BLUE Avg Time: {avg_blue_time:.2f}s")
+        print(f"  RED Total Crashes: {total_red_crashes} | BLUE Total Crashes: {total_blue_crashes}")
+        print("=" * 120)
+    else:
+        print("No races completed.")
+        print("=" * 120)
 
     pygame.quit()
 

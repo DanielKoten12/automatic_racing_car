@@ -78,6 +78,8 @@ class ConeManager:
     def collide_car(self, car):
         car_r = getattr(car, "hit_radius", 12)
         for c in self.cones:
-            if car.pos.distance_to(c.pos) <= (car_r + c.radius):
+            # Kurangi area deteksi lebih banyak untuk mengurangi false positive
+            collision_threshold = (car_r + c.radius) * 0.70  # 70% dari radius total
+            if car.pos.distance_to(c.pos) <= collision_threshold:
                 return True
         return False
